@@ -153,6 +153,96 @@ function inv_get_any_item (inv, list)
   return item
 end
 
+local InvTransaction = {}
+InvTransaction.__index = InvTransaction
+
+function InvTransaction.new()
+  local self = setmetatable({}, InvTransaction)
+  self.src = nil
+  self.dst = nil
+  self.src_list = "main"
+  self.dst_list = "main"
+  self.stack = nil
+  return self
+end
+
+--returns true if succeeded
+--returns false, reason:string otherwise
+function InvTransaction:transact()
+  --assert both inventories exist
+  if self.dst == nil then
+    return false, "dst == nil"
+  end
+  if self.src == nil then
+    return false, "src == nil"
+  end
+
+  --assert source and destination are different inventories
+  if self.src == self.dst then
+    return false, "src == dst"
+  end
+
+  --will get stack from src if .stack == nil
+  local stack, discovered = self:get_stack()
+  --assert there is a stack to move
+  if stack == nil then
+    return false, "stack == nil"
+  end
+
+  if not discovered then
+    --assert item is from source
+    if not self.src:contains_item(self.src_list, stack) then
+      return false, "stack not in src"
+    end
+  end
+
+  --assert there is room in destination
+  if not self.dst:room_for_item(self.dst_list, stack) then
+    return false, "no room for item in dst"
+  end
+
+  --remove item from source
+  self.src:remove_item(self.src_list, stack)
+  --add item to destination
+  self.dst:add_item(self.src_list, stack)
+
+  print("Transaction successful!")
+  return true, ""
+end
+
+function InvTransaction:set_src(nsrc, list)
+  self.src = nsrc
+  if list ~= nil then
+    self.src_list = list
+  end
+end
+
+function InvTransaction:set_dst(ndst, list)
+  self.dst = ndst
+  if list ~= nil then
+    self.dst_list = list
+  end
+end
+
+function InvTransaction:set_stack(stack)
+  self.stack = stack
+end
+
+--returns stack (may be nil), and true if stack was fetched from src
+--false if stack could be from somewhere else
+function InvTransaction:get_stack(stack)
+  local discovered = false
+  if self.stack == nil then
+    self.stack = inv_get_any_item(self.src)
+    discovered = true
+  end
+  return self.stack, discovered
+end
+
+function inv_from_pos(pos)
+  return minetest.get_meta(pos):get_inventory()
+end
+
 function register_sorter ()
   minetest.register_node("repcraft:sorter", {
     description = "Item Sorter",
@@ -249,57 +339,35 @@ function register_sorter ()
 
     action = function (pos, node, active_object_count, active_object_count_wider)
       --get the sorter inventory
-      local meta = minetest.get_meta(pos)
-      local inv = meta:get_inventory()
       
-      local tp = nil
+      local ta = InvTransaction.new()
 
-      --the output inventory (side block or bottom)
-      local oinv = nil
+      local inv_s = inv_from_pos(pos)
 
-      --if slot open, see if inventory above us can give us an itemstack
-      if inv:is_empty("main") then
-        tp = top(pos)
-        oinv = minetest.get_meta(
-          tp
-        ):get_inventory()
+      --if our input inv is empty
+      if inv_s:is_empty("main") then
+        local tpos = top(pos)
+        local tnode = minetest.get_node(tpos)
 
-        local input = inv_get_any_item(oinv)
-        if input ~= nil then
-          -- minetest.chat_send_all("top not empty, got item: " .. input:get_name())
-          if oinv:room_for_item("main", input) then
-            --remove from first inv
-            oinv:remove_item("main", input)
-            --add to second
-            inv:add_item("main", input)
-            --don't process sorting this step
-            return
-          end
+        if tnode.name == "default:chest" then
+          ta:set_src( inv_from_pos( tpos ) )
         end
+
+      else
+        --we're not empty, use our stack
+        ta:set_src( inv_s )
       end
-      
-      --get the sorter input item (only one slot)
-      local input = inv:get_list("main")[1]
 
-      --if filter is empty, just move to bottom
-      if inv:is_empty("filter") then
-        tp = bottom(pos)
-        oinv = minetest.get_meta(
-          tp
-        ):get_inventory()
-        if oinv:room_for_item("main", input) then
-          inv:remove_item("main", input)
-          oinv:add_item("main", input)
-          return
-        end
+      local stack = ta:get_stack()
+
+      if stack == nil then
         return
       end
-
       --get name of input item
-      local name_i = input:get_name()
+      local name_i = stack:get_name()
 
       --get list of filter items
-      local filter = inv:get_list("filter")
+      local filter = inv_s:get_list("filter")
 
       --get names of filter items
       local name_n = filter[1]:get_name()
@@ -307,6 +375,7 @@ function register_sorter ()
       local name_e = filter[3]:get_name()
       local name_w = filter[4]:get_name()
 
+      local tp = nil
       --calculate a block pos (side or bottom) based on filter item matching
       if name_i == name_n then
         tp = north(pos)
@@ -320,20 +389,27 @@ function register_sorter ()
         tp = bottom(pos)
       end
 
-      --get the inventory for the side
-      oinv = minetest.get_meta(
-        tp
-      ):get_inventory()
+      ta:set_dst( inv_from_pos( tp ) )
 
-      --checks if the inventory exists + has room for the item
-      if oinv:room_for_item("main", input) then
-        --remove from first inv
-        inv:remove_item("main", input)
-        --add to second
-        oinv:add_item("main", input)
-        return
+      --if transaction fails
+      local success, reason = ta:transact()
+
+      if success then
+        -- minetest.chat_send_all(
+        -- "transaction success, from: " .. ta.src:get_location().pos.y .. ",to: " .. ta.dst:get_location().pos.y
+        -- )
+      else
+        --try setting item sorter as the destination
+        ta:set_dst(inv_s)
+
+        -- minetest.chat_send_all("transaction failed due to " .. reason)
+
+        --try transaction again (fails if src == dst)
+        if ta:transact() then
+          -- minetest.chat_send_all("retry to sorter succeeded")
+        end
+        
       end
-
     end,
   })
 
