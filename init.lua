@@ -120,8 +120,8 @@ function register_stone_axe_sharp ()
     output = "repcraft:axe_stone_sharp",
     type = "shaped",
     recipe = {
-      { "default:flint","default:flint","default:flint" },
-      { "","default:stick","" },
+      { "default:flint","default:flint","" },
+      { "default:flint","default:stick","" },
       { "","default:stick","" }
     }
   })
