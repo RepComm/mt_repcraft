@@ -284,20 +284,6 @@ function register_sorter ()
       inv:set_size("main", 1)
       inv:set_size("filter", 4)
 
-      -- meta:set_string("formspec",
-      --   "formspec_version[4]"..
-      --   "size[9.75,8]"..
-      --   "bgcolor[#000]".. --bgcolor[<bgcolor>;<fullscreen>;<fbgcolor>]
-      --   "label[0,0.1;Item Sorter (" .. pos.x .. "," .. pos.y .. "," .. pos.z ..")]" ..
-      --   "label[0,0.5;Input Item]" ..
-      --   "label[4,0.5;Filter items will be used to compare to input item only]" ..
-      --   "list[context;main;0,1;1,1;]" ..
-      --   "label[2,1.5;Filter (N S E W)]" ..
-      --   "list[context;filter;0,2.25;4,1;]" ..
-      --   "label[5.5,2.75;Your Inventory]" ..
-      --   "list[current_player;main;0,3.5;8,4;]"..
-      --   "no_prepend[]"
-      -- )
       meta:set_string("formspec",
         "formspec_version[6]" ..
         "size[10.5,10]" ..
@@ -463,13 +449,43 @@ function register_scarecrow ()
         0.5, -0.4, 0.5
       }
     },
-    sunlight_propagates = true
+    sunlight_propagates = true,
+
+    on_construct = function(pos)
+      local meta = minetest.get_meta(pos)
+		  local inv = meta:get_inventory()
+      inv:set_size("main", 4)
+
+      meta:set_string("formspec",
+        "formspec_version[6]" ..
+        "size[10.5,10]" ..
+        "list[context;main;4.8,1.2;4,1;]" ..
+        "list[current_player;main;0.4,5.2;8,4;]" ..
+        "label[4.7,0.8;Scarecrow Inv]" ..
+        "label[4.7,4.7;Your Inv]" ..
+        "label[3.8,0.2;Scarecrow at { " .. minetest.formspec_escape(tostring(--[[${]]pos.x--[[}]])) .. "\\, " .. minetest.formspec_escape(tostring(--[[${]]pos.y--[[}]])) .. "\\, " .. minetest.formspec_escape(tostring(--[[${]]pos.z--[[}]])) .. " }]"
+      )
+
+    end,
+    on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
+      
+      local playername = clicker:get_player_name()
+      
+      local meta = minetest.get_meta(pos)
+      local formspec = meta:get_string("formspec")
+
+      minetest.show_formspec(
+        playername,
+        "repcraft:scarecrow",
+        formspec
+      )
+    end
   })
 
   minetest.register_abm({
     label = "repcraft:scarecrow harvesting",
     nodenames = { "repcraft:scarecrow" },
-    interval = 60,
+    interval = 30,--60,
     chance = 1,
 
     -- min_y = -1000,
@@ -478,6 +494,68 @@ function register_scarecrow ()
     catch_up = false,
 
     action = function (pos, node, active_object_count, active_object_count_wider)
+      local reach = 3
+      local min = v_copy(pos)
+      local max = v_copy(pos)
+      
+      min.x = min.x - reach
+      min.y = min.y --- reach
+      min.z = min.z - reach
+      max.x = max.x + reach
+      max.y = max.y --+ reach
+      max.z = max.z + reach
+
+      local p = v_copy(pos)
+
+      local meta = minetest.get_meta(pos)
+		  local inv = meta:get_inventory()
+
+      for x=min.x,max.x do
+        for y=min.y,max.y do
+          for z=min.z,max.z do
+            p.x = x
+            p.y = y
+            p.z = z
+            
+            local b = minetest.get_node(p)
+            
+            local harvest_name = "farming:wheat_8"
+            local place_name = "farming:seed_wheat"
+
+            if b.name == harvest_name then
+              --drops as calculated by rarity
+              local drops = minetest.get_node_drops(harvest_name)
+              -- minetest.chat_send_all(dump(drops))
+              local items = {}
+
+              for i,drop in ipairs(drops) do
+                
+                local s = ItemStack(drop)
+                items[#items+1] = s
+
+                if not inv:room_for_item("main", s) then
+                  return
+                end
+              end
+
+              for i,item in ipairs(items) do
+                inv:add_item("main", item)
+              end
+
+              --try remove seed from scarecrow inventory for placement
+              --scarecrow will only replant if it has seed
+              --players must place seed to jump start the process
+              local place = inv:remove_item("main", ItemStack(place_name))
+              if not place:is_empty() then
+                minetest.set_node(p, {
+                  name=place_name,
+                  param2=1
+                })
+              end
+            end
+          end
+        end
+      end
       
       
     end,
