@@ -424,12 +424,85 @@ function register_sorter ()
   })
 end
 
+function register_craft_bonemeal ()
+  minetest.register_craft({
+    output = "bonemeal:bonemeal 8",
+    type = "shapeless",
+    recipe = {
+      "bonemeal:bone",
+    },
+  })
+end
+
+function register_scarecrow ()
+  --farming:wheat_8
+  minetest.register_node("repcraft:scarecrow", {
+    description = "Scarecrow",
+    groups = { cracky = 3, stone = 2},
+    drawtype = "mesh",
+    mesh = "scarecrow.obj",
+    paramtype2 = "facedir",
+    tiles = {
+      "repcraft_scarecrow_wood.png",
+      "repcraft_scarecrow_wheat.png",
+      "repcraft_scarecrow_plad.png",
+      "repcraft_scarecrow_jeans.png",
+      "repcraft_scarecrow_hat.png",
+    },
+    selection_box = {
+      type = "fixed",
+      fixed = {
+        -0.5, -0.5, -0.5,
+        0.5, 1.5, 0.5
+      }
+    },
+    collision_box = {
+      type = "fixed",
+      fixed = {
+        -0.5, -0.5, -0.5,
+        0.5, -0.4, 0.5
+      }
+    },
+    sunlight_propagates = true
+  })
+
+  minetest.register_abm({
+    label = "repcraft:scarecrow harvesting",
+    nodenames = { "repcraft:scarecrow" },
+    interval = 60,
+    chance = 1,
+
+    -- min_y = -1000,
+    -- max_y = 1000,
+
+    catch_up = false,
+
+    action = function (pos, node, active_object_count, active_object_count_wider)
+      
+      
+    end,
+  })
+
+  minetest.register_craft({
+    output = "repcraft:scarecrow",
+    type = "shaped",
+    recipe = {
+      { "farming:wheat","group:stick","farming:wheat" },
+      { "","group:stick","" },
+      { "","group:wood","" }
+    }
+  })
+
+end
+
 function main ()
   register_craft_coal()
   register_stone_pick_sharp()
   register_craft_flint()
   register_stone_axe_sharp()
   register_sorter()
+  register_craft_bonemeal()
+  register_scarecrow()
 end
 
 main()
