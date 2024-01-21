@@ -8,6 +8,28 @@ function v_copy (pos, output)
 
   return output
 end
+
+function v_add (output, addFrom)
+  if output == nil then
+    output = { x = 0, y = 0, z = 0}
+  end
+  output.x = output.x + addFrom.x
+  output.y = output.y + addFrom.y
+  output.z = output.z + addFrom.z
+
+  return output
+end
+function v_sub (output, subFrom)
+  if output == nil then
+    output = { x = 0, y = 0, z = 0}
+  end
+  output.x = output.x - subFrom.x
+  output.y = output.y - subFrom.y
+  output.z = output.z - subFrom.z
+
+  return output
+end
+
 function north (pos, amount, output)
   output = v_copy(pos, output)
   if amount == nil then
@@ -573,6 +595,120 @@ function register_scarecrow ()
 
 end
 
+function register_cobbleminer ()
+  --farming:wheat_8
+  minetest.register_node("repcraft:cobbleminer", {
+    description = "Cobble Miner",
+    groups = { cracky = 3, stone = 2},
+    drawtype = "normal",
+    paramtype = "light",
+    light_source = 4,
+    paramtype2 = "facedir",
+    sunlight_propagates = false,
+    tiles = {
+      "repcraft_cobbleminer_sides.png",
+      "repcraft_cobbleminer_sides.png",
+      "repcraft_cobbleminer_sides.png",
+      "repcraft_cobbleminer_sides.png",
+      "repcraft_cobbleminer_sides.png",
+      "repcraft_cobbleminer_front.png"
+    },
+    on_construct = function(pos)
+      local meta = minetest.get_meta(pos)
+		  local inv = meta:get_inventory()
+      inv:set_size("main", 4)
+
+      meta:set_string("formspec",
+        "formspec_version[6]" ..
+        "size[10.5,10]" ..
+        "list[context;main;4.8,1.2;4,1;]" ..
+        "list[current_player;main;0.4,5.2;8,4;]" ..
+        "label[4.7,0.8;Cobbleminer Inv]" ..
+        "label[4.7,4.7;Your Inv]" ..
+        "label[3.8,0.2;Cobbleminer at { " .. minetest.formspec_escape(tostring(--[[${]]pos.x--[[}]])) .. "\\, " .. minetest.formspec_escape(tostring(--[[${]]pos.y--[[}]])) .. "\\, " .. minetest.formspec_escape(tostring(--[[${]]pos.z--[[}]])) .. " }]"
+      )
+
+    end,
+    on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
+      
+      local playername = clicker:get_player_name()
+      
+      local meta = minetest.get_meta(pos)
+      local formspec = meta:get_string("formspec")
+
+      minetest.show_formspec(
+        playername,
+        "repcraft:cobbleminer",
+        formspec
+      )
+    end
+  })
+
+  minetest.register_abm({
+    label = "repcraft:cobbleminer mining",
+    nodenames = { "repcraft:cobbleminer" },
+    interval = 4,--60,
+    chance = 1,
+
+    -- min_y = -1000,
+    -- max_y = 1000,
+
+    catch_up = false,
+
+    action = function (pos, node, active_object_count, active_object_count_wider)
+      
+      
+      local v_dir = minetest.facedir_to_dir(node.param2)
+      
+      local v_target = v_copy(pos)
+      v_add(v_target, v_dir)
+      local b = minetest.get_node(v_target)
+      
+      if b.name ~= "default:cobble" and b.name ~= "default:stone" then
+        return
+      end
+
+
+      local meta = minetest.get_meta(pos)
+      local inv = meta:get_inventory()
+
+      local drops = minetest.get_node_drops(b.name)
+
+      local items = {}
+
+      for i,drop in ipairs(drops) do
+        
+        local s = ItemStack(drop)
+        items[#items+1] = s
+
+        if not inv:room_for_item("main", s) then
+          return
+        end
+      end
+
+      for i,item in ipairs(items) do
+        inv:add_item("main", item)
+      end
+
+      minetest.set_node(v_target, {
+        name="air"
+      })
+      
+    end,
+  })
+
+  minetest.register_craft({
+    output = "repcraft:cobbleminer",
+    type = "shaped",
+    recipe = {
+      { "default:cobble","default:cobble","default:cobble" },
+      { "default:cobble","repcraft:pick_stone_sharp","default:cobble" },
+      { "default:cobble","default:cobble","default:cobble" }
+    }
+  })
+
+end
+
 function main ()
   register_craft_coal()
   register_stone_pick_sharp()
@@ -581,6 +717,8 @@ function main ()
   register_sorter()
   register_craft_bonemeal()
   register_scarecrow()
+
+  register_cobbleminer()
 end
 
 main()
