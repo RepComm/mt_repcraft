@@ -647,7 +647,7 @@ function register_cobbleminer ()
   minetest.register_abm({
     label = "repcraft:cobbleminer mining",
     nodenames = { "repcraft:cobbleminer" },
-    interval = 4,--60,
+    interval = 8,
     chance = 1,
 
     -- min_y = -1000,
